@@ -1,4 +1,4 @@
-// app/api/auth/signin/route.ts
+// app/api/auth/signin/route.ts - cambio realizado
 import { NextResponse } from 'next/server'
 import { SiweMessage } from 'siwe'
 import { sign } from 'jsonwebtoken'

@@ -1,4 +1,4 @@
-// app/api/auth/message/route.ts
+// app/api/auth/message/route.ts - cambio realizado
 import { NextResponse } from 'next/server'
 import { generateNonce } from 'siwe'
 

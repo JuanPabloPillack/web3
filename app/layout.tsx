@@ -1,3 +1,4 @@
+// app/layout.tsx
 import './globals.css'
 import { wagmiConfig } from '@/lib/wagmi'
 import { WagmiProvider } from 'wagmi'

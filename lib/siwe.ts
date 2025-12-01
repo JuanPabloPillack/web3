@@ -1,3 +1,4 @@
+// lib/siwe.ts
 import { SiweMessage } from 'siwe'
 
 export const getSiweMessage = (address: string, nonce: string) => {

@@ -1,3 +1,4 @@
+// components/ConnectWallet.tsx
 'use client'
 import { useWeb3Modal } from '@web3modal/wagmi/react'
 import { useAccount } from 'wagmi'

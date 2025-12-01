@@ -1,4 +1,4 @@
-// app/api/faucet/claim/route.ts
+// app/api/faucet/claim/route.ts - cambio realizado
 import { NextResponse } from 'next/server'
 import { verify } from 'jsonwebtoken'
 import { createPublicClient, createWalletClient, http, parseEther } from 'viem'

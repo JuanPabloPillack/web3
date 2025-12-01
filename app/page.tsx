@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client'
 import { useState } from 'react'
 import { useAccount } from 'wagmi'

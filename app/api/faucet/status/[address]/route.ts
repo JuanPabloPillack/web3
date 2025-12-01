@@ -1,11 +1,21 @@
-// app/api/faucet/status/[address]/route.ts
+// app/api/faucet/status/[address]/route.ts - cambio realizado
 import { NextResponse } from 'next/server'
-import { publicClient, ABI, CONTRACT_ADDRESS } from './utils' // puedes extraer lo común
+import { publicClient, ABI, CONTRACT_ADDRESS } from './utils' 
 
 export async function GET(req: Request, { params }: { params: { address: string } }) {
   const address = params.address as `0x${string}`
   const auth = req.headers.get('authorization')
-  // ... mismo verifyToken que arriba
+
+  function verifyToken(authHeader?: string) {
+  if (!authHeader?.startsWith('Bearer ')) return null
+  const token = authHeader.split(' ')[1]
+  try {
+    const payload = verify(token, JWT_SECRET) as any
+    return payload.address as string
+  } catch {
+    return null
+  }
+}
 
   try {
     const [hasClaimed, balance, users] = await Promise.all([
