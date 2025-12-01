@@ -1,91 +1,153 @@
 // app/page.tsx
 'use client'
-import { useState } from 'react'
-import { useAccount } from 'wagmi'
+
+import { useState, useEffect } from 'react'
+import { useAccount, useDisconnect } from 'wagmi'
 import { getSiweMessage } from '@/lib/siwe'
 
 export default function Home() {
   const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
+
+  // Estado de autenticación y datos del faucet
   const [token, setToken] = useState<string | null>(null)
   const [status, setStatus] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  // Recuperar JWT del localStorage al cargar (persistir sesión)
+  useEffect(() => {
+    const saved = localStorage.getItem('jwt')
+    if (saved && address) {
+      setToken(saved)
+      loadStatus(saved)
+    }
+  }, [address])
+
+  // 1. Sign-In with Ethereum
   const signIn = async () => {
     if (!address) return
+    setLoading(true)
+    setError(null)
 
-    const res = await fetch('/api/auth/message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address })
-    })
-    const { nonce } = await res.json()
+    try {
+      // Obtener nonce del backend
+      const res = await fetch('/api/auth/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address })
+      })
 
-    const message = getSiweMessage(address, nonce)
-    const signature = await window.ethereum?.request({
-      method: 'personal_sign',
-      params: [message, address]
-    })
+      if (!res.ok) throw new Error('Error al obtener nonce')
+      const { nonce } = await res.json()
 
-    const loginRes = await fetch('/api/auth/signin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, signature, address })
-    })
+      // Preparar y firmar mensaje SIWE
+      const message = getSiweMessage(address, nonce)
+      const signature = await window.ethereum?.request({
+        method: 'personal_sign',
+        params: [message, address]
+      })
 
-    const data = await loginRes.json()
-    if (data.token) {
+      if (!signature) throw new Error('Firma cancelada')
+
+      // Enviar firma al backend
+      const loginRes = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, signature, address })
+      })
+
+      const data = await loginRes.json()
+      if (!data.token) throw new Error(data.error || 'Login falló')
+
       setToken(data.token)
       localStorage.setItem('jwt', data.token)
       loadStatus(data.token)
+      alert('¡Autenticado correctamente!')
+    } catch (err: any) {
+      setError(err.message)
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
   }
 
+  // 2. Reclamar tokens (backend paga gas)
   const claim = async () => {
-    const res = await fetch('/api/faucet/claim', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token || localStorage.getItem('jwt')}`
+    setLoading(true)
+    setError(null)
+
+    try {
+      const jwt = token || localStorage.getItem('jwt')
+      const res = await fetch('/api/faucet/claim', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwt}`
+        }
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        alert(`¡Éxito! Tx: ${data.txHash}`)
+        loadStatus(jwt!)
+      } else {
+        alert(`Error: ${data.error}`)
       }
-    })
-    const data = await res.json()
-    alert(data.success ? '¡Claim exitoso!' : data.error)
-    loadStatus(token!)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
+  // 3. Cargar estado del faucet
   const loadStatus = async (jwt: string) => {
     if (!address) return
-    const res = await fetch(`/api/faucet/status/${address}`, {
-      headers: { Authorization: `Bearer ${jwt}` }
-    })
-    const data = await res.json()
-    setStatus(data)
+    try {
+      const res = await fetch(`/api/faucet/status/${address}`, {
+        headers: { Authorization: `Bearer ${jwt}` }
+      })
+      const data = await res.json()
+      setStatus(data)
+    } catch (err) {
+      console.error('Error cargando estado', err)
+    }
   }
 
   return (
-    <main className="p-10">
-      <h1 className="text-3xl mb-8">Faucet Token - TP Web3 + SIWE</h1>
-      
-      <w3m-button />
+    <main className="max-w-2xl mx-auto p-8">
+      <h1 className="text-4xl font-bold mb-8 text-center">
+        Faucet Token Sepolia
+      </h1>
 
-      {isConnected && !token && (
-        <button onClick={signIn} className="bg-green-600 text-white px-6 py-3 mt-4 rounded">
-          Sign-In with Ethereum
-        </button>
-      )}
+      {/* Botón de conexión Web3Modal */}
+      <div className="flex justify-center mb-8">
+        <w3m-button size="md" label="Conectar Wallet" />
+      </div>
 
-      {token && (
-        <div className="mt-8">
-          <button onClick={claim} disabled={status?.hasClaimed} className="bg-purple-600 text-white px-8 py-4 text-xl rounded disabled:opacity-50">
-            {status?.hasClaimed ? 'Ya reclamaste' : 'Reclamar 1,000,000 tokens'}
+      {/* Estado de conexión */}
+      {isConnected && (
+        <div className="text-center mb-6 text-sm text-gray-600">
+          Conectado: {address?.slice(0, 6)}...{address?.slice(-4)}
+          <button onClick={() => disconnect()} className="ml-4 text-red-500 underline">
+            Desconectar
           </button>
-
-          {status && (
-            <div className="mt-6 bg-gray-100 p-6 rounded">
-              <p>Balance: {Number(status.balance) / 1e18} tokens</p>
-              <p>Usuarios que reclamaron: {status.users.length}</p>
-            </div>
-          )}
         </div>
       )}
-    </main>
-  )
-}
+
+      {/* Sign-In with Ethereum */}
+      {isConnected && !token && (
+        <div className="text-center">
+          <button
+            onClick={signIn}
+            disabled={loading}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition disabled:opacity-50"
+          >
+            {loading ? 'Firmando...' : 'Sign-In with Ethereum'}
+          </button>
+        </div>
+      )}
+
+      {/* Panel principal cuando está autenticado */}
+      {token && (
+        <div className="bg
